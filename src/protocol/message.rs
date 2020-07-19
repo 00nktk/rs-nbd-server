@@ -1,7 +1,8 @@
 use std::io;
 use std::io::{Write};
+use std::fmt::Debug;
 
-pub trait Message {
+pub trait Message: Debug {
     fn get_header(&self) -> &[u8];
     fn get_data(&self) -> Option<&[u8]>;
 }

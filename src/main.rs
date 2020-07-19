@@ -1,12 +1,9 @@
 extern crate num_derive;
 extern crate num_traits;
 
-// mod request_message;
-// mod reply_message;
-// mod option;
-// mod message;
 mod server;
 mod protocol;
+mod export;
 
 use std::net::{TcpListener};
 
@@ -17,7 +14,7 @@ fn main() -> std::io::Result<()> {
 
     
     for stream in listener.incoming() {
-        Server::new(stream?)?.serve();
+        Server::handshake(stream?)?.option_haggle()?.serve()?;
     }
 
     println!("Hello, world!");

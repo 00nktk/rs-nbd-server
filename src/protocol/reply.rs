@@ -1,12 +1,12 @@
-use std::fs::{File};
-use std::io::{Read, Seek, SeekFrom};
-
+use std::io::{Read};
+use std::rc::Rc;
 use std::iter::Iterator;
 
 use crate::protocol::message::Message;
+use crate::export::Export;
 
 use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::{ToPrimitive};
 
 pub const SIMPLE_REPLY_MAGIC: u32 = 0x67446698;
 
@@ -16,24 +16,7 @@ pub enum Reply {
     Disconnect
 }
 
-// impl Message for Reply {
-//     fn get_header(&self) -> &[u8] {
-//         match self {
-//             Reply::Simple(x) => x.get_header(),
-//             Reply::Structured(x) => x.get_header(),
-//             Reply::Disconnect => &[]
-//         }
-//     }
-
-//     fn get_data(&self) -> Option<&[u8]> {
-//         match self {
-//             Reply::Simple(x) => x.get_data(),
-//             Reply::Structured(x) => x.get_data(),
-//             Reply::Disconnect => None
-//         }
-//     }
-// }
-
+#[derive(Debug)]
 pub struct SimpleReply {
     header: Vec<u8>,
     pub error: u32,
@@ -71,11 +54,8 @@ pub struct StructuredReply{
 }
 
 impl StructuredReply {
-    pub fn read_from_offset(source: &File, handle: u64, offset: u64, len: u64, chunk_size: u64) -> Self
-        // where T : std::io::Read + std::io::Seek
+    pub fn read_from_offset(source: Rc<Export>, handle: u64, offset: u64, len: u64, chunk_size: u64) -> Self
     {
-        
-        let mut source = source.try_clone().unwrap();
         let end = offset + len;
 
         let ranges: Vec<(u64, u64)> = (0..).take_while(|i| i * chunk_size < len)
@@ -93,8 +73,7 @@ impl StructuredReply {
                 let mut data = vec![0; len as usize + 8];
                 (&ofs.to_be_bytes()[0..]).read(&mut data);
                 
-                source.seek(SeekFrom::Start(ofs));
-                source.read_exact(&mut data[8..]);
+                source.read_into(&mut data[8..], ofs, len as usize).unwrap();
 
                 data
             }
@@ -135,6 +114,7 @@ pub enum ChunkType {
     ErrorOffset,
 }
 
+#[derive(Debug)]
 pub struct StructuredReplyChunk {
     header: Vec<u8>,
     pub flags: u16,            //  !: only NBD_REPLY_FLAG_DONE on bit 0
