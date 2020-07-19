@@ -17,6 +17,5 @@ fn main() -> std::io::Result<()> {
         Server::handshake(stream?)?.option_haggle()?.serve()?;
     }
 
-    println!("Hello, world!");
     Ok(())
 }

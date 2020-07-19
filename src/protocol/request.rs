@@ -73,7 +73,6 @@ impl TryFrom<&[u8]> for Request {
         if slice.len() < 24 {
             Err(Self::Error::BufferTooShort)
         } else {
-            println!("{:?}", slice);
             let type_ = slice[2..4].try_into()
                 .map(u16::from_be_bytes)
                 .map(RequestType::from_u16)?

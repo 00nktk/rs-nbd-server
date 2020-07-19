@@ -101,8 +101,6 @@ fn parse_info_go(data: &[u8]) -> Result<(Option<String>, Option<Vec<Info>>), Opt
         .map(u16::from_be_bytes)
         .map_err(|_| OptionError::Parse)? as usize;
 
-    println!("info: {} {:?}", n_info_requests, requests);
-
     let info_requests: Option<Vec<Info>> = if n_info_requests > 0 {
         Some( 
             requests.chunks(2).filter_map(|s| s.try_into().ok())
@@ -132,13 +130,10 @@ fn parse_list_meta_context(data: &[u8]) -> Result<(Option<String>, Option<Vec<St
         .map(u32::from_be_bytes)
         .map_err(|_| OptionError::Parse)? as usize;
 
-    println!("info: {} {:?}", n_queries, queries);
-
     let (_, queries): (_, Option<Vec<String>>) = if n_queries > 0 {
         (0..n_queries)
             .try_fold((queries, Vec::with_capacity(n_queries)), |(data, mut acc), _| {
                 let (len, data) = data.split_at(4);
-                println!("here");
                 let len = len.try_into()
                     .map(u32::from_be_bytes)
                     .map_err(|_| OptionError::Parse)? as usize;

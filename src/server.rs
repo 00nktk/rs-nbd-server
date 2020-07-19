@@ -31,12 +31,10 @@ fn handshake(stream: &mut TcpStream) -> std::io::Result<()> {
 
     stream.write_all(&NBDMAGIC.to_be_bytes())?;
     stream.write_all(&IHAVEOPT.to_be_bytes())?;
-    println!("{:#016b}", HS_FLAGS);
     stream.write_all(&HS_FLAGS.to_be_bytes())?;  // TODO: fix this
     stream.flush()?;
     stream.read_exact(&mut buf)?;
 
-    println!("{:?}", buf);
     // if u32::from_be_bytes(buf) != HS_FLAGS as u32 { panic!("wrong client flags"); }
 
     Ok(())
@@ -262,8 +260,6 @@ impl Server {
     }
 
     fn handle_request(&self, request: req::Request) -> rpl::Reply {
-        eprintln!("got request: {:?}", request);
-
         match request.type_ {
             req::RequestType::Read => 
                 if self.use_structured {
