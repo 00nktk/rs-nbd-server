@@ -42,7 +42,7 @@ fn handshake(stream: &mut TcpStream) -> std::io::Result<()> {
 }
 
 impl Server {
-    pub fn handshake(export_name: &str, mut stream: TcpStream, chunk_size: u32) -> std::io::Result<Self> {
+    pub fn handshake(export_name: &str, mut stream: TcpStream, chunk_size: u32) -> Result<Self, ServerError> {
         
         handshake(&mut stream)?;
         let use_structured = false;
@@ -58,7 +58,7 @@ impl Server {
         })
     }
 
-    pub fn option_haggle(mut self) -> std::io::Result<Self> {
+    pub fn option_haggle(mut self) -> Result<Self, ServerError> {
         let mut input_buffer = vec![0; 1024];
         let (mut end, mut unparsed) = (0, false);
         
@@ -176,7 +176,7 @@ impl Server {
                             );
 
                             send_msg(&mut self.input_stream, reply)?;
-                            return Err(Error::new(ErrorKind::Other, "client aborted"))
+                            return Err(ServerError::Abort)
                         }
 
                         ot => {
@@ -208,10 +208,10 @@ impl Server {
         Ok(self)
     }
 
-    pub fn serve(&mut self) -> std::io::Result<()> {
+    pub fn serve(&mut self) -> Result<(), ServerError> {
         use std::io::{Error, ErrorKind};
 
-        if !self.ready { return Err(Error::new(ErrorKind::Other, "needs option haggling")) }
+        if !self.ready { return Err(ServerError::NotReady) }
         
         let mut magic_buf = [0; 4];
 
@@ -229,8 +229,7 @@ impl Server {
             let bytes_read = self.input_stream.read(&mut header_buf).unwrap();
 
             if bytes_read == 24 {
-
-                // TODO: fix for a case when data > buffer 
+ 
                 match header_buf[..bytes_read].try_into() {
                     Ok(r) => {
                         let reply_ = self.handle_request(r); 
@@ -333,5 +332,25 @@ impl Server {
                     opt::OptionReplyType::Info, 
                     Some(data)
                 ))
+    }
+}
+
+#[derive(Debug)]
+pub enum ServerError {
+    RequestError(req::RequestError),
+    IoError(std::io::Error),
+    Abort,
+    NotReady,
+}
+
+impl From<std::io::Error> for ServerError { 
+    fn from(err: std::io::Error) -> Self {
+        Self::IoError(err)
+    }
+}
+
+impl From<req::RequestError> for ServerError { 
+    fn from(err: req::RequestError) -> Self {
+        Self::RequestError(err)
     }
 }

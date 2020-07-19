@@ -9,9 +9,9 @@ use std::net::{TcpListener};
 
 use clap::{Arg, App};
 
-use server::Server;
+use server::{Server, ServerError};
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), ServerError> {
     let matches = App::new("NBD Server")
         .arg(Arg::with_name("input file")
             .required(true)
@@ -33,7 +33,11 @@ fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:10809")?;
     
     for stream in listener.incoming() {
-        Server::handshake(filename, stream?, chunk_size)?.option_haggle()?.serve()?;
+        match Server::handshake(filename, stream?, chunk_size)?.option_haggle() {
+            Ok(mut server) => server.serve()?,
+            Err(ServerError::Abort) => eprintln!("client aborted"),
+            Err(err) => return Err(err)
+        };
     }
 
     Ok(())
