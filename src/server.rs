@@ -220,10 +220,10 @@ impl Server {
         loop {
 
             // ?: consider moving magic check to request code   
-            // TODO: remove panic and unwrap
             self.input_stream.read_exact(&mut magic_buf).unwrap();
             if u32::from_be_bytes(magic_buf) != req::REQMAGIC {
-                panic!("wrong request magic");
+                eprintln!("error: wrong request magic, disconnecting");
+                Err(ServerError::Unsync)
             }
             
             let bytes_read = self.input_stream.read(&mut header_buf).unwrap();
@@ -247,8 +247,8 @@ impl Server {
                         }
                     },
                     Err(e) => {
-                        eprintln!("{:?}", e);
-                        unimplemented!()
+                        eprintln!("error: {:?}", e);
+                        Err(e)
                     }
                 }
 
@@ -262,7 +262,10 @@ impl Server {
 
     fn handle_request(&self, request: req::Request) -> rpl::Reply {
         match request.type_ {
-            req::RequestType::Read => 
+            req::RequestType::Read => {
+                if request.offset + request.len as u64 > self.export.size {
+                    return rpl::Reply::Simple(rpl::SimpleReply::new(22, request.handle, None))  // NBD_EINVAL
+                }
                 if self.use_structured {
                     rpl::Reply::Structured(
                         rpl::StructuredReply::read_from_offset(
@@ -270,23 +273,17 @@ impl Server {
                         )
                     )
                 } else {
-                    if request.offset + request.len as u64 > self.export.size {
-                        panic!("bad file access");                  // !FIXME
-                    }
                     rpl::Reply::Simple( 
                         rpl::SimpleReply::new(
                             0, request.handle, Some(self.export.read(request.offset, request.len as usize).unwrap())
                         )
                     )
-                },
-            req::RequestType::Write => unimplemented!(),
+                }
+            },
             req::RequestType::Disc => rpl::Reply::Disconnect,
-            req::RequestType::Flush => unimplemented!(),
-            req::RequestType::Trim => unimplemented!(),
-            req::RequestType::Cache => unimplemented!(),
-            req::RequestType::WriteZeroes => unimplemented!(),
-            req::RequestType::BlockStatus => unimplemented!(),
-            req::RequestType::Resize => unimplemented!(),
+
+            //  unimplemented requests
+            _ => rpl::Reply::Simple(rpl::SimpleReply::new(22, request.handle, None))  // NBD_EINVAL
         }
     }
 
@@ -341,6 +338,7 @@ pub enum ServerError {
     IoError(std::io::Error),
     Abort,
     NotReady,
+    Unsync
 }
 
 impl From<std::io::Error> for ServerError { 
