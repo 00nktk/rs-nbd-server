@@ -19,6 +19,7 @@ const IHAVEOPT: u64 = 0x49484156454F5054;
 
 // TODO: make generic over input_stream
 pub struct Server {
+    chunk_size: u32,
     ready: bool,
     use_structured: bool,
     input_stream: TcpStream,
@@ -41,14 +42,15 @@ fn handshake(stream: &mut TcpStream) -> std::io::Result<()> {
 }
 
 impl Server {
-    pub fn handshake(mut stream: TcpStream) -> std::io::Result<Self> {
+    pub fn handshake(export_name: &str, mut stream: TcpStream, chunk_size: u32) -> std::io::Result<Self> {
         
         handshake(&mut stream)?;
         let use_structured = false;
 
-        let export = Rc::new(Export::new("test.img".to_owned())?);
+        let export = Rc::new(Export::new(export_name.to_owned())?);
 
         Ok ( Self {
+            chunk_size,
             ready: false,
             use_structured,
             input_stream: stream,
@@ -265,7 +267,7 @@ impl Server {
                 if self.use_structured {
                     rpl::Reply::Structured(
                         rpl::StructuredReply::read_from_offset(
-                            Rc::clone(&self.export), request.handle, request.offset, request.len, 1024
+                            Rc::clone(&self.export), request.handle, request.offset, request.len, self.chunk_size
                         )
                     )
                 } else {
