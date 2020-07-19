@@ -202,6 +202,8 @@ impl Server {
                 }
             }
         }
+
+        self.ready = true;
         Rc::get_mut(&mut self.export).unwrap().load()?;  //  should not fail
         Ok(self)
     }
@@ -267,7 +269,7 @@ impl Server {
                 if self.use_structured {
                     rpl::Reply::Structured(
                         rpl::StructuredReply::read_from_offset(
-                            Rc::clone(&self.export), request.handle, request.offset, request.len as u64, 1024
+                            Rc::clone(&self.export), request.handle, request.offset, request.len, 1024
                         )
                     )
                 } else {

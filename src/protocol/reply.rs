@@ -9,6 +9,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{ToPrimitive};
 
 pub const SIMPLE_REPLY_MAGIC: u32 = 0x67446698;
+const STRUCTURED_REPLY_MAGIC: u32 = 0x668e33ef;
 
 pub enum Reply {
     Simple(SimpleReply),
@@ -49,26 +50,26 @@ impl Message for SimpleReply {
 pub struct StructuredReply{
     handle: u64,
     count: usize,
-    gen_func: Box<dyn FnMut((u64, u64)) -> Vec<u8>>,
-    ranges: Vec<(u64, u64)>
+    gen_func: Box<dyn FnMut((u64, u32)) -> Vec<u8>>,
+    ranges: Vec<(u64, u32)>
 }
 
 impl StructuredReply {
-    pub fn read_from_offset(source: Rc<Export>, handle: u64, offset: u64, len: u64, chunk_size: u64) -> Self
+    pub fn read_from_offset(source: Rc<Export>, handle: u64, offset: u64, len: u32, chunk_size: u32) -> Self
     {
-        let end = offset + len;
+        let end: u64 = offset + len as u64;
 
-        let ranges: Vec<(u64, u64)> = (0..).take_while(|i| i * chunk_size < len)
+        let ranges: Vec<(u64, u32)> = (0..).take_while(|i| i * chunk_size < len)
             .map(|i| {
-                let start = offset + i * chunk_size;
-                let size = if start + chunk_size > end {
+                let start: u64 = offset + (i * chunk_size) as u64;
+                let size: u64 = if start + chunk_size as u64 > end {
                         end - offset 
-                    } else { chunk_size };
-                (start, size)
+                    } else { chunk_size.into() };
+                (start, size as u32)
             }).collect();
 
         let gen_func = Box::new(
-            move |arg: (u64, u64)| {
+            move |arg: (u64, u32)| {
                 let (ofs, len) = arg;
                 let mut data = vec![0; len as usize + 8];
                 (&ofs.to_be_bytes()[0..]).read(&mut data);
@@ -94,15 +95,13 @@ impl Iterator for StructuredReply {
                 ChunkType::OffsetData,
                 self.handle,
                 Some(data),
-                self.count == self.ranges.len() - 1             
+                self.count == self.ranges.len()             
             ))
         } else {
             None
         }
     }
 }
-
-const STRUCTURED_REPLY_MAGIC: u32 = 0x668e33ef;
 
 #[derive(FromPrimitive, ToPrimitive, Debug)]
 pub enum ChunkType {
@@ -120,7 +119,7 @@ pub struct StructuredReplyChunk {
     pub flags: u16,            //  !: only NBD_REPLY_FLAG_DONE on bit 0
     pub type_: ChunkType,      //  u16
     pub handle: u64,
-    pub len: u64,
+    pub len: u32,
     data: Option<Vec<u8>>  //  ?: consider using unwrapped Vec since 
                            //  ?: simple reply can be used for msgs without payload
 }
@@ -128,7 +127,7 @@ pub struct StructuredReplyChunk {
 impl StructuredReplyChunk {
     fn new(type_: ChunkType, handle: u64, data: Option<Vec<u8>>, done: bool) -> Self {
         let flags: u16 = if done { 1 } else { 0 };
-        let len: u64 = if let Some(ref vec) = data { vec.len() as u64 } else { 0 };
+        let len: u32 = if let Some(ref vec) = data { vec.len() as u32 } else { 0 };
 
         let header = STRUCTURED_REPLY_MAGIC.to_be_bytes().iter()
             .chain(flags.to_be_bytes().iter())
