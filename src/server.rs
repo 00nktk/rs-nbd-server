@@ -223,7 +223,7 @@ impl Server {
             self.input_stream.read_exact(&mut magic_buf).unwrap();
             if u32::from_be_bytes(magic_buf) != req::REQMAGIC {
                 eprintln!("error: wrong request magic, disconnecting");
-                Err(ServerError::Unsync)
+                return Err(ServerError::Unsync)
             }
             
             let bytes_read = self.input_stream.read(&mut header_buf).unwrap();
@@ -234,7 +234,10 @@ impl Server {
                     Ok(r) => {
                         let reply_ = self.handle_request(r); 
                         match reply_ {
-                            rpl::Reply::Disconnect => break,
+                            rpl::Reply::Disconnect => {
+                                eprintln!("disconnecting");
+                                break
+                            },
 
                             rpl::Reply::Simple(reply) => {
                                 send_msg(&mut self.input_stream, reply).unwrap()
@@ -248,7 +251,7 @@ impl Server {
                     },
                     Err(e) => {
                         eprintln!("error: {:?}", e);
-                        Err(e)
+                        return Err(e.into())
                     }
                 }
 
