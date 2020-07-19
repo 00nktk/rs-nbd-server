@@ -145,7 +145,13 @@ impl Server {
                     Ok(r) => { 
                         match self.handle_request(r) {
                             rpl::Reply::Disconnect => break,
-                            reply => send_msg(&mut self.input_stream, reply).unwrap()
+
+                            rpl::Reply::Simple(reply) => 
+                                send_msg(&mut self.input_stream, reply).unwrap(),
+
+                            rpl::Reply::Structured(replies) => {
+                                replies.for_each(|msg| send_msg(&mut self.input_stream, msg).unwrap())
+                            }
                         }
                     },
                     Err(e) => {
