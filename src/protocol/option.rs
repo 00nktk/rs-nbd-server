@@ -5,7 +5,7 @@ use crate::protocol::message::Message;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 
-const REPLY_MAGIC: u64 = 0x3e889045565a9;
+const OPTION_REPLY_MAGIC: u64 = 0x3e889045565a9;
 
 #[derive(Debug)]
 pub enum NbdOption {
@@ -187,7 +187,7 @@ pub enum OptionReplyType {
 
 #[derive(Debug)]
 pub struct Reply {
-    header: Vec<u8>,
+    header: [u8; 20],
     pub option_type: u32,
     pub reply_type: OptionReplyType,
     pub data: Option<Vec<u8>>
@@ -196,12 +196,16 @@ pub struct Reply {
 impl Reply {
     pub fn new(option_type: u32, reply_type: OptionReplyType, data: Option<Vec<u8>>) -> Self {
         let len: u32 = data.as_ref().map_or(0, Vec::len) as u32;
-        let header = REPLY_MAGIC.to_be_bytes().iter()
-            .chain(option_type.to_u32().unwrap().to_be_bytes().iter())  // !: REMOVE UNWRAP 
-            .chain(reply_type.to_u32().unwrap().to_be_bytes().iter())
-            .chain(len.to_be_bytes().iter())
-            .copied()
-            .collect();
+        let mut header = [0_u8; 20];
+
+        OPTION_REPLY_MAGIC.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i] = *b);
+        option_type.to_u32().unwrap().to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 8] = *b);
+        reply_type.to_u32().unwrap().to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 12] = *b);
+        len.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 16] = *b);
 
         Self { header, option_type, reply_type, data }
     }
@@ -209,7 +213,7 @@ impl Reply {
 
 impl Message for Reply {
     fn get_header(&self) -> &[u8] {
-        self.header.as_slice()
+        &self.header
     }
 
     fn get_data(&self) -> Option<&[u8]> {

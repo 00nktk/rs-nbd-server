@@ -19,7 +19,7 @@ pub enum Reply {
 
 #[derive(Debug)]
 pub struct SimpleReply {
-    header: Vec<u8>,
+    header: [u8; 16],
     pub error: u32,
     pub handle: u64,
     pub data: Option<Vec<u8>>
@@ -27,11 +27,14 @@ pub struct SimpleReply {
 
 impl SimpleReply {
     pub fn new(error: u32, handle: u64, data: Option<Vec<u8>>) -> Self {
-        let header = SIMPLE_REPLY_MAGIC.to_be_bytes().iter()
-            .chain(error.to_be_bytes().iter())
-            .chain(handle.to_be_bytes().iter())
-            .copied()
-            .collect();
+        let mut header = [0_u8; 16];
+        
+        SIMPLE_REPLY_MAGIC.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i] = *b);
+        error.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 4] = *b);
+        handle.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 8] = *b);
         
         Self { header, error, handle, data }
     }
@@ -39,7 +42,7 @@ impl SimpleReply {
 
 impl Message for SimpleReply {
     fn get_header(&self) -> &[u8] {
-        self.header.as_slice()
+        &self.header
     }
 
     fn get_data(&self) -> Option<&[u8]> {
@@ -115,7 +118,7 @@ pub enum ChunkType {
 
 #[derive(Debug)]
 pub struct StructuredReplyChunk {
-    header: Vec<u8>,
+    header: [u8; 20],
     pub flags: u16,            //  !: only NBD_REPLY_FLAG_DONE on bit 0
     pub type_: ChunkType,      //  u16
     pub handle: u64,
@@ -127,14 +130,20 @@ pub struct StructuredReplyChunk {
 impl StructuredReplyChunk {
     fn new(type_: ChunkType, handle: u64, data: Option<Vec<u8>>, done: bool) -> Self {
         let flags: u16 = if done { 1 } else { 0 };
-        let len: u32 = if let Some(ref vec) = data { vec.len() as u32 } else { 0 };
+        let len: u32 = data.as_ref().map(Vec::len).unwrap_or(0) as u32;
 
-        let header = STRUCTURED_REPLY_MAGIC.to_be_bytes().iter()
-            .chain(flags.to_be_bytes().iter())
-            .chain(type_.to_u16().unwrap().to_be_bytes().iter())
-            .chain(handle.to_be_bytes().iter())
-            .chain(len.to_be_bytes().iter())
-            .copied().collect();
+        let mut header = [0_u8; 20];
+
+        STRUCTURED_REPLY_MAGIC.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i] = *b);
+        flags.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 4] = *b);
+        type_.to_u16().unwrap().to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 6] = *b);
+        handle.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 8] = *b);
+        len.to_be_bytes().iter().enumerate()
+            .for_each(|(i, b)| header[i + 16] = *b);
 
         Self { header, flags, type_, handle, len, data }
     }
@@ -142,7 +151,7 @@ impl StructuredReplyChunk {
 
 impl Message for StructuredReplyChunk {
     fn get_header(&self) -> &[u8] {
-        self.header.as_slice()
+        &self.header
     }
 
     fn get_data(&self) -> Option<&[u8]> {
