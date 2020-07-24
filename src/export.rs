@@ -1,4 +1,5 @@
 use std::fs::{File, metadata};
+use std::os::unix::fs::*;
 use std::io::{SeekFrom, Seek, Read};
 
 pub struct Export {
@@ -9,8 +10,17 @@ pub struct Export {
 
 impl Export {
     pub fn new(filename: String) -> std::io::Result<Self> {
-        let size = metadata(&filename)?.len();
-        
+        let mtdt = metadata(&filename)?;
+        let size = if mtdt.file_type().is_block_device() {
+            File::open(&filename)?.seek(SeekFrom::End(0))?  // kinda hacky, but works
+        } else { 
+            mtdt.len() 
+        };
+
+        if size == 0 {
+            panic!("size of the export is 0");
+        }
+
         Ok( Self { name: filename, file: None, size } )
     }
 
@@ -33,9 +43,10 @@ impl Export {
     
     pub fn read_into(&self, buf: &mut [u8], offset: u64, len: usize) -> std::io::Result<()> {        
         if !self.loaded() { panic!("export not loaded"); }
-        
-        self.file.as_ref().unwrap().seek(SeekFrom::Start(offset))?;
-        let _ = self.file.as_ref().unwrap().read(&mut buf[..len])?;
+
+        // self.file.as_ref().unwrap().seek(SeekFrom::Start(offset))?;
+        // let _ = self.file.as_ref().unwrap().read(&mut buf[..len])?;
+        let _ = self.file.as_ref().unwrap().read_at(&mut buf[..len], offset)?;
 
         Ok(())
     }
